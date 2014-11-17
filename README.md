@@ -61,7 +61,7 @@ unpickled to Numbers and so on.
 | bool   | boolean       | bool   |
 | None   | null          | None   |
 
-(1) tuple/dict types are loaded a custom Objects based on JavaScript's Array/Object types.
+(1) tuple/dict types are loaded as custom Objects (based on JavaScript's Array/Object types).
 
 (2) all keys get stringed
 
