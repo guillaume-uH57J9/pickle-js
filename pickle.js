@@ -53,16 +53,26 @@ var pickle = (new function() {
     /* Other magic constants that are not opcodes
      */
     NEWLINE         = "\n"
-    MARK_OBJECT     = null
+    function MARK_OBJECT(){}
     SQUO            = "'"
+    
+    /* Prototypes for Tuple and Dict objects
+     */
+    var Tuple = function() {}
+    Tuple.prototype = new Array()
+    Tuple.prototype.isTuple = true
+    
+    var Dict = function() {}
+    Dict.prototype = new Object()
+    Dict.prototype.isDict = true
 
     /*
      * loads(string) -> object
      * load a pickled Python object from a string
      */
     self.loads = function(pickle) {
-        stack = []
-        memo = []
+        var stack = []
+        var memo = []
     
         var ops = pickle.split(NEWLINE)
         var op
@@ -77,6 +87,7 @@ var pickle = (new function() {
     // to speed up op processing, declare two args here
     var arg0
     var arg1
+    var arg2
 
     var process_op = function(op, memo, stack) {
         if (op.length === 0)
@@ -84,9 +95,7 @@ var pickle = (new function() {
     
         switch (op[0]) {
             case MARK:
-                // TODO: when we support POP_MARK AND POP, we need real marks
-                // ...we need this for tuple, as well
-                //stack.push(MARK_OBJECT)
+                stack.push(MARK_OBJECT)
                 process_op(op.slice(1), memo, stack)
                 break
             case STOP:
@@ -99,7 +108,6 @@ var pickle = (new function() {
                     stack.push(arg0)
                     break
                 }
-            
                 arg0 = parseInt(op.slice(1))
                 //console.log("int", arg0)
                 stack.push(arg0)
@@ -125,7 +133,15 @@ var pickle = (new function() {
                 process_op(op.slice(1), memo, stack)
                 break
             case DICT:
-                stack.push({})
+                arg0 = new Dict()
+                while( stack[stack.length-1] != MARK_OBJECT )
+                {
+                    arg2 = stack.pop()
+                    arg1 = stack.pop()
+                    arg0[arg1] = arg2
+                }
+                stack.pop()
+                stack.push(arg0)
                 process_op(op.slice(1), memo, stack)
                 break
             case GET:
@@ -134,12 +150,19 @@ var pickle = (new function() {
                 stack.push(arg1)
                 //console.log("getting", arg1)
                 break
-            case LIST:            
-                stack.push([])
+            case LIST:
+                arg0 = []
+		arg1 = stack.pop()
+                while( arg1 != MARK_OBJECT )
+                {
+                    arg0.push(arg1)
+                    arg1 = stack.pop()
+                }
+                stack.push(arg0)
                 process_op(op.slice(1), memo, stack)
                 break
             case PUT:
-                arg0 = parseInt(op.slice(-1))
+                arg0 = parseInt(op.slice(1))
                 arg1 = stack[stack.length-1]
                 memo[arg0] = arg1
                 //console.log("memo", arg0, arg1)
@@ -147,16 +170,20 @@ var pickle = (new function() {
             case SETITEM:
                 arg1 = stack.pop()
                 arg0 = stack.pop()
-                stack[stack.length-1][arg0] = [arg1]
+                stack[stack.length-1][arg0] = arg1
                 //console.log("current before set", stack)
                 process_op(op.slice(1), memo, stack)
                 break
             case TUPLE:
-                //console.log("tuple")
-                stack.push([])
-                // TODO: tuples
-                
-                process_op(op.slice(1))
+                arg0 = new Tuple()
+                arg1 = undefined
+                do {
+                    if ( arg1 !== undefined )
+                        arg0.unshift(arg1)
+                    arg1 = stack.pop()
+                } while( arg1 != MARK_OBJECT );
+                stack.push(arg0)
+                process_op(op.slice(1), memo, stack)
                 break    
             default:
                 throw new Error("unknown opcode " + op[0])
